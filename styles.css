@@ -1717,3 +1717,17 @@ input:checked + .slider:before {
 .hidden {
   display: none !important;
 }
+
+/* ==================== HIDE NETLIFY OVERLAYS & BADGE ==================== */
+iframe[id*="netlify"],
+#netlify-drawer,
+[data-netlify-drawer],
+.netlify-badge,
+[class*="netlify-drawer"],
+[class*="netlify-badge"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
