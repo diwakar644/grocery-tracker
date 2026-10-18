@@ -1,0 +1,54 @@
+{
+  "id": "com.freshguard.app",
+  "name": "FreshGuard - Grocery Expiry Tracker",
+  "short_name": "FreshGuard",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f1f5f9",
+  "theme_color": "#059669",
+  "description": "Smart kitchen food inventory and expiry tracker. Scan product labels, get alerts, and prevent food waste.",
+  "categories": ["lifestyle", "food", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan Label",
+      "short_name": "Scan",
+      "description": "Open camera to scan a grocery label",
+      "url": "./index.html#scan",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Add Kitchen Item",
+      "short_name": "Add",
+      "description": "Manually add a grocery or food item",
+      "url": "./index.html#add",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

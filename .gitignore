@@ -1,0 +1,17 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and Scratch
+*.log
+scratch/
+test_*.html
+inspect_dom.html
+dom_output*.html
+screenshot*.png
+
+# Node / Editor (if used)
+node_modules/
+.vscode/
+.idea/

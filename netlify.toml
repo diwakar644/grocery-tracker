@@ -1,0 +1,43 @@
+# Netlify Configuration for FreshGuard Grocery Expiry Tracker
+
+[build]
+  publish = "."
+
+# Security and PWA Permissions Headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Allow camera access for the barcode / label scanning feature
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
+
+# Service Worker - Do not cache aggressively so updates take effect immediately
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Cache icons & images for performance
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/sample-images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+# SPA redirect fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

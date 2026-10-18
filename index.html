@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>FreshGuard - Kitchen & Grocery Expiry Tracker</title>
+  <meta name="description" content="Track food and grocery expiry dates easily. Scan labels, auto-detect expiry dates, and get smart notifications before food spoils." />
+  
+  <!-- Color & Icons -->
+  <meta name="theme-color" content="#059669" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  
+  <!-- Apple iOS PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="FreshGuard" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  
+  <!-- Android & General Web App -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="application-name" content="FreshGuard" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Tesseract.js for high-speed client-side OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Main App Wrapper -->
+  <div class="app-wrapper">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-container">
+        <div class="brand">
+          <div class="brand-logo">🥑</div>
+          <div class="brand-text">
+            <h1>FreshGuard</h1>
+            <span class="brand-subtitle">Smart Grocery & Expiry Tracker</span>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button id="btnInstallPwa" class="btn btn-secondary btn-install-app" onclick="app.promptPwaInstall()" title="Install app on device">
+            <span class="icon">📲</span>
+            <span class="btn-text">Install</span>
+          </button>
+          <button id="btnOpenScanner" class="btn btn-primary btn-scan-highlight" title="Scan grocery label">
+            <span class="icon">📷</span>
+            <span class="btn-text">Scan Label</span>
+          </button>
+          <button id="btnManualAdd" class="btn btn-secondary" title="Manually add item">
+            <span class="icon">➕</span>
+            <span class="btn-text">Add Item</span>
+          </button>
+          <button id="btnNotifDrawer" class="btn btn-icon-badge" title="View expiry alerts" aria-label="Notifications">
+            <span class="icon">🔔</span>
+            <span id="notifBadge" class="badge-count hidden">0</span>
+          </button>
+          <button id="btnWasteStats" class="btn btn-icon" title="Food waste & recipes" aria-label="Waste & Recipes">
+            <span class="icon">📊</span>
+          </button>
+          <button id="btnSettings" class="btn btn-icon" title="Settings & backup" aria-label="Settings">
+            <span class="icon">⚙️</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Stats Dashboard Banner -->
+    <section class="stats-dashboard">
+      <div class="stats-container">
+        <div class="stat-card">
+          <div class="stat-icon icon-total">📦</div>
+          <div class="stat-info">
+            <span id="statTotal" class="stat-number">0</span>
+            <span class="stat-label">Active Items</span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon icon-expiring">⏳</div>
+          <div class="stat-info">
+            <span id="statExpiring" class="stat-number stat-alert-warn">0</span>
+            <span class="stat-label">Expiring Soon (≤3d)</span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon icon-expired">❌</div>
+          <div class="stat-info">
+            <span id="statExpired" class="stat-number stat-alert-danger">0</span>
+            <span class="stat-label">Expired</span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon icon-saverate">💚</div>
+          <div class="stat-info">
+            <span id="statSaveRate" class="stat-number">100%</span>
+            <span class="stat-label">Food Saved Rate</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controls: Search, Sort, Filter -->
+    <main class="main-content">
+      <div class="controls-panel">
+        <div class="search-sort-row">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Search milk, curd, sauces, spices..." autocomplete="off" />
+          </div>
+
+          <div class="sort-box">
+            <label for="sortSelect">Sort:</label>
+            <select id="sortSelect">
+              <option value="expiry_asc">Expiry: Soonest First ⚡</option>
+              <option value="expiry_desc">Expiry: Furthest First</option>
+              <option value="name_asc">Name: A to Z</option>
+              <option value="created_desc">Recently Added</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Filter Pill Chips -->
+        <div class="filter-chips-wrapper">
+          <div class="filter-chips" role="tablist">
+            <button class="filter-chip active" data-filter="all">All Items</button>
+            <button class="filter-chip filter-warn" data-filter="expiring_soon">⏳ Expiring Soon</button>
+            <button class="filter-chip filter-danger" data-filter="expired">❌ Expired</button>
+            <button class="filter-chip" data-filter="Fridge">❄️ Fridge</button>
+            <button class="filter-chip" data-filter="Pantry">🥫 Pantry</button>
+            <button class="filter-chip" data-filter="Freezer">🧊 Freezer</button>
+            <button class="filter-chip" data-filter="Dairy">🥛 Dairy</button>
+            <button class="filter-chip" data-filter="Sauces & Condiments">🥫 Sauces</button>
+            <button class="filter-chip" data-filter="Bakery">🍞 Bakery</button>
+            <button class="filter-chip" data-filter="Produce">🥬 Produce</button>
+            <button class="filter-chip" data-filter="consumed">🍽️ Used History</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Items Grid -->
+      <div id="itemsContainer" class="items-grid"></div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">🥗</div>
+        <h2>No kitchen items found</h2>
+        <p>Start tracking your grocery items to avoid food waste and keep food fresh!</p>
+        <div class="empty-actions">
+          <button id="btnEmptyAdd" class="btn btn-primary">➕ Add an Item</button>
+          <button id="btnEmptyLoadSamples" class="btn btn-secondary">⚡ Load Demo Items (Milk, Curd, Sauces)</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Bottom Navigation for Mobile -->
+    <nav class="mobile-nav">
+      <button onclick="document.getElementById('searchInput').focus()" class="nav-item">
+        <span class="nav-icon">🔍</span>
+        <span class="nav-label">Search</span>
+      </button>
+      <button onclick="app.openScannerModal()" class="nav-item nav-item-scan">
+        <span class="nav-icon-circle">📷</span>
+        <span class="nav-label">Scan</span>
+      </button>
+      <button onclick="app.openAddModal()" class="nav-item">
+        <span class="nav-icon">➕</span>
+        <span class="nav-label">Add</span>
+      </button>
+      <button onclick="app.openWasteStatsModal()" class="nav-item">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Stats</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. SCANNER MODAL -->
+  <div id="scannerModal" class="modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-title-icon">📷</span>
+          <h3>Scan Label & Auto-Detect Expiry</h3>
+        </div>
+        <button class="modal-close" onclick="app.closeScannerModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Camera Viewfinder -->
+        <div id="cameraView" class="camera-viewfinder">
+          <video id="scannerVideo" autoplay playsinline muted></video>
+          
+          <div class="viewfinder-overlay">
+            <div class="viewfinder-reticle">
+              <div class="corner-border tl"></div>
+              <div class="corner-border tr"></div>
+              <div class="corner-border bl"></div>
+              <div class="corner-border br"></div>
+              <div class="scan-line"></div>
+              <span class="reticle-hint">Point camera at Expiry / Best Before date</span>
+            </div>
+          </div>
+
+          <div id="cameraError" class="camera-error-banner hidden"></div>
+
+          <!-- Controls inside viewfinder -->
+          <div class="viewfinder-controls">
+            <label class="btn btn-upload-fallback" title="Choose image file or camera snapshot">
+              <span>📁 Upload / Pick Photo</span>
+              <input type="file" id="scannerFileInput" accept="image/*" capture="environment" />
+            </label>
+            <button id="btnCapturePhoto" class="btn btn-shutter" title="Take Photo">
+              <div class="shutter-inner"></div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Scanning Progress -->
+        <div id="scannerProgress" class="scanner-progress-box hidden">
+          <div class="progress-spinner">⏳</div>
+          <h4 id="scannerProgressStatus">Analyzing grocery label...</h4>
+          <div class="progress-bar-track">
+            <div id="scannerProgressBar" class="progress-bar-fill"></div>
+          </div>
+          <p class="progress-note">Tesseract OCR is reading date stamps (EXP, USE BY, BBD)...</p>
+        </div>
+
+        <!-- Scanner Result Card -->
+        <div id="scannerResultCard" class="scanner-result-card hidden">
+          <div class="result-header">
+            <h4>Extraction Results</h4>
+            <span id="scannedConfidence" class="confidence-badge">🎯 High Confidence</span>
+          </div>
+
+          <div class="result-layout">
+            <div class="result-thumb-box">
+              <img id="scannedThumb" src="" alt="Scanned label preview" />
+            </div>
+
+            <div class="result-fields">
+              <div class="form-group">
+                <label>Detected Expiry Date <span class="req">*</span></label>
+                <input type="date" id="scannedDateDisplay" class="form-input date-highlight" />
+                <span class="field-hint">Auto-detected from label. Feel free to adjust if needed.</span>
+              </div>
+
+              <div class="form-group">
+                <label>Detected / Suggested Item Name</label>
+                <input type="text" id="scannedNameInput" class="form-input" placeholder="e.g. Amul Milk / Curd / Heinz Sauce" />
+              </div>
+
+              <div class="form-group">
+                <label>Category</label>
+                <select id="scannedCategoryInput" class="form-select">
+                  <option value="Dairy">🥛 Dairy (Milk, Curd, Cheese)</option>
+                  <option value="Sauces & Condiments">🥫 Sauces & Condiments</option>
+                  <option value="Bakery">🍞 Bakery & Bread</option>
+                  <option value="Produce">🥬 Produce & Veggies</option>
+                  <option value="Meat & Poultry">🍗 Meat & Eggs</option>
+                  <option value="Beverages">🧃 Beverages & Juices</option>
+                  <option value="Pantry & Dry Goods">🌾 Pantry & Dry Goods</option>
+                  <option value="Frozen Foods">🧊 Frozen Foods</option>
+                  <option value="Other">🛒 Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-footer">
+            <button type="button" class="btn btn-secondary" onclick="app.startCameraStream(); document.getElementById('scannerResultCard').classList.add('hidden'); document.getElementById('cameraView').classList.remove('hidden');">
+              🔄 Retake Photo
+            </button>
+            <button type="button" class="btn btn-primary" onclick="app.confirmScannedResult()">
+              ✅ Use This Data & Save Item
+            </button>
+          </div>
+        </div>
+
+        <!-- AI Vision Toggle Banner -->
+        <div class="ai-toggle-box">
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggleAiVision" />
+            <span class="slider round"></span>
+          </label>
+          <div class="ai-toggle-label">
+            <strong>Use Gemini AI Vision</strong>
+            <span>Optional high-precision AI label parser. (Configure API key in Settings)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. ADD / EDIT ITEM MODAL -->
+  <div id="itemModal" class="modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add Kitchen Item</h3>
+        <button class="modal-close" onclick="app.closeModal('itemModal')">&times;</button>
+      </div>
+
+      <form id="itemForm">
+        <input type="hidden" id="itemId" />
+
+        <div class="modal-body">
+          <!-- Quick Presets -->
+          <div class="presets-row">
+            <span class="presets-label">⚡ Quick 1-Tap Presets:</span>
+            <div class="presets-list">
+              <button type="button" class="preset-btn" data-preset="milk">🥛 Milk (3d)</button>
+              <button type="button" class="preset-btn" data-preset="curd">🥣 Curd (4d)</button>
+              <button type="button" class="preset-btn" data-preset="bread">🍞 Bread (4d)</button>
+              <button type="button" class="preset-btn" data-preset="eggs">🥚 Eggs (21d)</button>
+              <button type="button" class="preset-btn" data-preset="sauce">🥫 Sauce (90d)</button>
+              <button type="button" class="preset-btn" data-preset="paneer">🧀 Paneer (4d)</button>
+            </div>
+          </div>
+
+          <!-- Item Name -->
+          <div class="form-group">
+            <label for="itemName">Item Name <span class="req">*</span></label>
+            <input type="text" id="itemName" class="form-input" placeholder="e.g. Amul Gold Milk, Mother Dairy Curd, Heinz Ketchup" required />
+          </div>
+
+          <!-- Category & Storage Location -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="itemCategory">Category</label>
+              <select id="itemCategory" class="form-select">
+                <option value="Dairy">🥛 Dairy</option>
+                <option value="Sauces & Condiments">🥫 Sauces & Condiments</option>
+                <option value="Bakery">🍞 Bakery</option>
+                <option value="Produce">🥬 Produce & Veggies</option>
+                <option value="Meat & Poultry">🍗 Meat & Eggs</option>
+                <option value="Beverages">🧃 Beverages</option>
+                <option value="Pantry & Dry Goods">🌾 Pantry & Grains</option>
+                <option value="Frozen Foods">🧊 Frozen</option>
+                <option value="Other">🛒 Other</option>
+              </select>
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="itemStorage">Storage Location</label>
+              <select id="itemStorage" class="form-select">
+                <option value="Fridge">❄️ Fridge</option>
+                <option value="Pantry">🥫 Pantry</option>
+                <option value="Freezer">🧊 Freezer</option>
+                <option value="Countertop">🧺 Countertop</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Quantity and Unit -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="itemQuantity">Quantity</label>
+              <input type="number" id="itemQuantity" class="form-input" min="0.1" step="any" value="1" />
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="itemUnit">Unit</label>
+              <select id="itemUnit" class="form-select">
+                <option value="pcs">Pieces (pcs)</option>
+                <option value="packet">Packet / Pouch</option>
+                <option value="bottle">Bottle</option>
+                <option value="tub">Tub / Container</option>
+                <option value="jar">Jar</option>
+                <option value="L">Liters (L)</option>
+                <option value="ml">Milliliters (ml)</option>
+                <option value="kg">Kilograms (kg)</option>
+                <option value="g">Grams (g)</option>
+                <option value="loaf">Loaf</option>
+                <option value="tray">Tray</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Expiry Date & Quick Offset Buttons -->
+          <div class="form-group">
+            <div class="label-row">
+              <label for="itemExpiryDate">Expiry Date <span class="req">*</span></label>
+            </div>
+            <input type="date" id="itemExpiryDate" class="form-input date-highlight" required />
+
+            <!-- Quick Offset Helper Chips -->
+            <div class="offset-chips">
+              <button type="button" class="offset-chip" onclick="app.setExpiryOffset(1)">+1 Day</button>
+              <button type="button" class="offset-chip" onclick="app.setExpiryOffset(3)">+3 Days</button>
+              <button type="button" class="offset-chip" onclick="app.setExpiryOffset(5)">+5 Days</button>
+              <button type="button" class="offset-chip" onclick="app.setExpiryOffset(7)">+1 Week</button>
+              <button type="button" class="offset-chip" onclick="app.setExpiryOffset(14)">+2 Weeks</button>
+              <button type="button" class="offset-chip" onclick="app.setExpiryOffset(30)">+1 Month</button>
+              <button type="button" class="offset-chip" onclick="app.setExpiryOffset(180)">+6 Months</button>
+            </div>
+          </div>
+
+          <!-- Purchase Date -->
+          <div class="form-group">
+            <label for="itemPurchaseDate">Bought / Purchased Date</label>
+            <input type="date" id="itemPurchaseDate" class="form-input" />
+          </div>
+
+          <!-- Attached Image Preview (if scanned or uploaded) -->
+          <div id="formImagePreviewWrapper" class="form-image-preview hidden">
+            <span class="preview-label">Label Photo:</span>
+            <div class="preview-box">
+              <img id="formImagePreview" src="" alt="Label photo" />
+              <button type="button" class="btn-remove-photo" onclick="app.removeFormImage()" title="Remove photo">&times;</button>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="form-group">
+            <label for="itemNotes">Notes / Shelf Life Details</label>
+            <textarea id="itemNotes" class="form-textarea" rows="2" placeholder="e.g. Consume within 2 days after opening."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="app.closeModal('itemModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Grocery Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. NOTIFICATIONS DRAWER -->
+  <div id="drawerBackdrop" class="drawer-backdrop hidden" onclick="app.closeNotificationDrawer()"></div>
+  <aside id="notifDrawer" class="drawer">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <span>🔔</span>
+        <h3>Expiry Alerts</h3>
+      </div>
+      <button class="drawer-close" onclick="app.closeNotificationDrawer()">&times;</button>
+    </div>
+
+    <div class="drawer-controls">
+      <button id="btnEnablePush" class="btn btn-secondary btn-sm">
+        <span>📲</span> Enable Browser Push Notifications
+      </button>
+    </div>
+
+    <div id="drawerAlertList" class="drawer-body"></div>
+  </aside>
+
+  <!-- 4. WASTE STATS & RECIPES MODAL -->
+  <div id="statsModal" class="modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span>📊</span>
+          <h3>Kitchen Waste Tracker & Smart Cook</h3>
+        </div>
+        <button class="modal-close" onclick="app.closeModal('statsModal')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="stats-overview-grid">
+          <div class="metric-card">
+            <span class="metric-val text-success" id="metricConsumed">0</span>
+            <span class="metric-lbl">Items Consumed 🍽️</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val text-danger" id="metricDiscarded">0</span>
+            <span class="metric-lbl">Items Discarded 🗑️</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val" id="metricActive">0</span>
+            <span class="metric-lbl">Currently Stored 📦</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-val text-accent" id="metricSaveRate">100%</span>
+            <span class="metric-lbl">Waste Prevention Rate 💚</span>
+          </div>
+        </div>
+
+        <div class="recipes-section">
+          <div class="recipes-header">
+            <h4>💡 What to Cook With Expiring Items</h4>
+            <p>Smart ideas to finish soon-to-expire curd, milk, bread, and sauces before they go bad:</p>
+          </div>
+          <div id="recipeSuggestions" class="recipes-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. SETTINGS MODAL -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span>⚙️</span>
+          <h3>Settings & Preferences</h3>
+        </div>
+        <button class="modal-close" onclick="app.closeModal('settingsModal')">&times;</button>
+      </div>
+
+      <form id="settingsForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="settingsThreshold">Expiry Notification Threshold</label>
+            <select id="settingsThreshold" class="form-select">
+              <option value="1">1 Day Before Expiry</option>
+              <option value="2">2 Days Before Expiry</option>
+              <option value="3">3 Days Before Expiry (Recommended)</option>
+              <option value="5">5 Days Before Expiry</option>
+              <option value="7">1 Week Before Expiry</option>
+            </select>
+            <span class="field-hint">How many days before expiry should FreshGuard start alerting you?</span>
+          </div>
+
+          <div class="form-group">
+            <label for="settingsApiKey">Gemini API Key (Optional)</label>
+            <input type="password" id="settingsApiKey" class="form-input" placeholder="AIzaSy..." />
+            <span class="field-hint">For enhanced zero-shot AI Vision scanner. (Client-side OCR works without any key!)</span>
+          </div>
+
+          <div class="settings-action-row">
+            <button type="button" id="btnTestChime" class="btn btn-secondary btn-sm">
+              <span>🔊</span> Test Audio Alert Chime
+            </button>
+          </div>
+
+          <hr class="divider" />
+
+          <h4>Backup & Data Management</h4>
+          <div class="backup-buttons">
+            <button type="button" id="btnExportBackup" class="btn btn-secondary">
+              <span>💾</span> Export Backup (JSON)
+            </button>
+            <label class="btn btn-secondary">
+              <span>📥</span> Import Backup
+              <input type="file" id="importBackupInput" accept=".json" style="display:none;" />
+            </label>
+            <button type="button" id="btnLoadSamples" class="btn btn-secondary">
+              <span>⚡</span> Reload Demo Items
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="app.closeModal('settingsModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. IMAGE ZOOM MODAL -->
+  <div id="imageModal" class="modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog modal-dialog-img">
+      <div class="modal-header">
+        <h4 id="modalImageCaption">Label Photo</h4>
+        <button class="modal-close" onclick="app.closeModal('imageModal')">&times;</button>
+      </div>
+      <div class="modal-body img-modal-body">
+        <img id="modalImagePreview" src="" alt="Label zoomed view" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/db.js"></script>
+  <script src="js/notifications.js"></script>
+  <script src="js/scanner.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((err) => {
+          console.log('SW registration note:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
